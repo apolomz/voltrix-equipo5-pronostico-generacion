@@ -7,10 +7,13 @@ local contenerizado con Docker Compose.
 
 ## Integrantes
 
-| Integrante | Código |
-| Juan Fernando Duque Jojoa | 2610342 |
-| Jhoan Sebastian Fernandez | 2222772 |
-| Jean Paul Davalos Valencia | 1832375 |
+| Integrante | \
+
+| Juan Fernando Duque Jojoa |
+
+| Jhoan Sebastian Fernandez |
+
+| Jean Paul Davalos Valencia |
 
 ## Stack
 
