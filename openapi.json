@@ -1,0 +1,355 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Voltrix Energy - Pronóstico de Generación",
+    "description": "API del Equipo 5 para estimar la generación futura por planta. Esta versión inicial usa datos simulados y regresión lineal con NumPy.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Salud"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaSalud"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pronosticos/generar": {
+      "post": {
+        "tags": [
+          "Pronósticos"
+        ],
+        "summary": "Generar pronósticos para varias plantas",
+        "operationId": "generar_pronosticos_pronosticos_generar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudGeneracion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaGeneracion"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pronosticos/{plantaId}": {
+      "get": {
+        "tags": [
+          "Pronósticos"
+        ],
+        "summary": "Consultar el último pronóstico de una planta",
+        "operationId": "consultar_pronostico_pronosticos__plantaId__get",
+        "parameters": [
+          {
+            "name": "plantaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plantaid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PronosticoPlanta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Frecuencia": {
+        "type": "string",
+        "enum": [
+          "hora",
+          "dia"
+        ],
+        "title": "Frecuencia"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PronosticoPlanta": {
+        "properties": {
+          "planta_id": {
+            "type": "string",
+            "title": "Planta Id"
+          },
+          "metodo": {
+            "type": "string",
+            "const": "regresion_lineal",
+            "title": "Metodo",
+            "default": "regresion_lineal"
+          },
+          "frecuencia": {
+            "$ref": "#/components/schemas/Frecuencia"
+          },
+          "generado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generado En"
+          },
+          "valores": {
+            "items": {
+              "$ref": "#/components/schemas/PuntoPronostico"
+            },
+            "type": "array",
+            "title": "Valores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planta_id",
+          "frecuencia",
+          "generado_en",
+          "valores"
+        ],
+        "title": "PronosticoPlanta"
+      },
+      "PuntoPronostico": {
+        "properties": {
+          "periodo": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Periodo"
+          },
+          "generacion_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Generacion Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "periodo",
+          "generacion_kwh"
+        ],
+        "title": "PuntoPronostico"
+      },
+      "RespuestaGeneracion": {
+        "properties": {
+          "modo_ejecucion": {
+            "type": "string",
+            "enum": [
+              "paralelo",
+              "secuencial_por_una_planta"
+            ],
+            "title": "Modo Ejecucion"
+          },
+          "backend_paralelismo": {
+            "type": "string",
+            "enum": [
+              "secuencial",
+              "thread",
+              "process"
+            ],
+            "title": "Backend Paralelismo"
+          },
+          "origen_datos": {
+            "type": "string",
+            "const": "demo",
+            "title": "Origen Datos",
+            "default": "demo"
+          },
+          "cantidad_plantas": {
+            "type": "integer",
+            "title": "Cantidad Plantas"
+          },
+          "pronosticos": {
+            "items": {
+              "$ref": "#/components/schemas/PronosticoPlanta"
+            },
+            "type": "array",
+            "title": "Pronosticos"
+          },
+          "advertencia": {
+            "type": "string",
+            "title": "Advertencia",
+            "default": "Prototipo académico: se usan datos simulados. La integración real con Inventario, Telemetría y Reportes está pendiente de acordar sus contratos."
+          }
+        },
+        "type": "object",
+        "required": [
+          "modo_ejecucion",
+          "backend_paralelismo",
+          "cantidad_plantas",
+          "pronosticos"
+        ],
+        "title": "RespuestaGeneracion"
+      },
+      "RespuestaSalud": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          },
+          "servicio": {
+            "type": "string",
+            "title": "Servicio",
+            "default": "pronostico-generacion"
+          }
+        },
+        "type": "object",
+        "title": "RespuestaSalud"
+      },
+      "SolicitudGeneracion": {
+        "properties": {
+          "planta_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Planta Ids",
+            "description": "Identificadores de las plantas que se desean pronosticar.",
+            "examples": [
+              [
+                "PLANTA-001",
+                "PLANTA-002"
+              ]
+            ]
+          },
+          "horizonte_periodos": {
+            "type": "integer",
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "Horizonte Periodos",
+            "description": "Cantidad de periodos futuros que se desean estimar.",
+            "default": 6,
+            "examples": [
+              6
+            ]
+          },
+          "frecuencia": {
+            "$ref": "#/components/schemas/Frecuencia",
+            "description": "Resolución temporal del pronóstico.",
+            "default": "hora"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planta_ids"
+        ],
+        "title": "SolicitudGeneracion",
+        "description": "Solicitud para generar pronósticos de una o varias plantas."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Salud",
+      "description": "Estado operativo del servicio."
+    },
+    {
+      "name": "Pronósticos",
+      "description": "Generación y consulta de pronósticos."
+    }
+  ]
+}
