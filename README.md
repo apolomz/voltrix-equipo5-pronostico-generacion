@@ -7,8 +7,6 @@ local contenerizado con Docker Compose.
 
 ## Integrantes
 
-| Integrante | \
-
 | Juan Fernando Duque Jojoa |
 
 | Jhoan Sebastian Fernandez |
