@@ -116,8 +116,5 @@ inicial, pero el benchmark permite contrastar ambas estrategias.
 
 Se informa el coste de arranque frío del pool de procesos por separado y se
 reportan los siete tiempos, mediana, mínimo, máximo, speedup y características
-del equipo. El benchmark valida la equivalencia con `numpy.allclose`. No asumir
-que el paralelo siempre gana: el resultado depende del equipo y del tamaño del
-histórico. Consultar `docs/DECISION_PARALELISMO.md` para la justificación.
-
+del equipo. El benchmark valida la equivalencia con `numpy.allclose`.
 
