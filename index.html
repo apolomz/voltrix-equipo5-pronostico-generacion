@@ -6,16 +6,50 @@
   <title>Voltrix Energy · Pronóstico de Generación (Equipo 5)</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
   <style>
-    body { margin: 0; background: #fafafa; }
-    .topbar-voltrix { background: #13293d; color: #fff; padding: 12px 24px; font-family: sans-serif; }
-    .topbar-voltrix h1 { margin: 0; font-size: 18px; }
-    .topbar-voltrix p { margin: 4px 0 0; font-size: 12px; color: #b8c7d9; }
+    body {
+      margin: 0;
+      background: #f4f7f6;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    .topbar-voltrix {
+      background: linear-gradient(135deg, #064e3b 0%, #0f766e 100%);
+      border-bottom: 3px solid #f59e0b;
+      color: #ffffff;
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .topbar-voltrix h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.3px;
+    }
+    .topbar-voltrix p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: #d1fae5;
+    }
+    .badge-equipo {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid #f59e0b;
+      color: #fde68a;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <div class="topbar-voltrix">
-    <h1>Voltrix Energy</h1>
-    <p>Documentación API · Pronóstico de Generación · Equipo 5</p>
+    <div>
+      <h1>Voltrix Energy · Pronóstico de Generación</h1>
+      <p>Especificación OpenAPI 3.0 · Proyección energética por planta</p>
+    </div>
+    <span class="badge-equipo">Equipo 5 · v1.0.0</span>
   </div>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>

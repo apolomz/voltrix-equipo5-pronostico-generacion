@@ -3,8 +3,8 @@ info:
   title: Voltrix Energy · Pronóstico de Generación
   version: 1.0.0
   description: |
-    Contrato HTTP del servicio **Pronóstico de Generación** (Equipo 5). Proyecta la generación futura
-    de energía por planta mediante regresión lineal paralelizada planta por planta.
+    Contrato HTTP del servicio **Pronóstico de Generación** (Equipo 5). Estima la generación
+    futura de energía por planta mediante modelos de regresión lineal.
 
     **Servicios que consume:** Inventario de Activos (Equipo 1), Telemetría de Plantas (Equipo 2), Reportes de Generación (Equipo 4).
 
@@ -43,7 +43,7 @@ tags:
   - name: Pronosticos
     description: Consulta de proyecciones de generación energética por planta.
   - name: Procesamiento
-    description: Cálculo paralelo de modelos de regresión lineal por planta (descomposición de datos).
+    description: Generación de pronósticos por planta a partir de datos operativos e históricos.
   - name: Operación
     description: Salud del servicio y publicación del contrato.
 
@@ -52,7 +52,7 @@ paths:
     get:
       tags: [Pronosticos]
       operationId: consultarPronosticoPorPlanta
-      summary: Consultar el pronóstico vigente de una planta
+      summary: Consultar el último pronóstico generado para una planta
       parameters:
         - $ref: '#/components/parameters/PlantaId'
         - $ref: '#/components/parameters/EquipoConsumidor'
@@ -65,7 +65,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pronostico'
+                $ref: '#/components/schemas/PronosticoPlanta'
               examples:
                 ejemplo:
                   $ref: '#/components/examples/PronosticoEjemplo'
@@ -76,59 +76,16 @@ paths:
         '503':
           $ref: '#/components/responses/NoDisponible'
 
-  /pronosticos:
-    get:
-      tags: [Pronosticos]
-      operationId: listarPronosticos
-      summary: Listar pronósticos generados con filtros y paginación
-      parameters:
-        - $ref: '#/components/parameters/EquipoConsumidor'
-        - name: plantaId
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/Identificador'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Página de pronósticos.
-          headers:
-            X-Request-Id:
-              $ref: '#/components/headers/X-Request-Id'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginaPronosticos'
-              example:
-                datos:
-                  - id: PRON-PL-001
-                    plantaId: PL-001
-                    frecuencia: hora
-                    horizontePeriodos: 6
-                    energiaEsperadaKwh: 342.8
-                    pendienteRegresion: 1.45
-                    generadoEn: '2026-11-19T14:00:00Z'
-                total: 1
-                limit: 50
-                offset: 0
-        '400':
-          $ref: '#/components/responses/SolicitudInvalida'
-        '429':
-          $ref: '#/components/responses/Sobrecarga'
-        '503':
-          $ref: '#/components/responses/NoDisponible'
-
   /pronosticos/generar:
     post:
       tags: [Procesamiento]
       operationId: generarPronosticos
-      summary: Calcular pronósticos de generación por planta en paralelo
+      summary: Generar pronósticos de energía para una o varias plantas
       description: |
-        Obtiene los activos operativos (Equipo 1), lecturas de telemetría (Equipo 2) y agregados
-        históricos (Equipo 4) para las plantas solicitadas, y descompone los datos planta por
-        planta para entrenar y proyectar modelos de regresión lineal en paralelo. Con `modo=secuencial`
-        ejecuta la línea base; con `modo=paralelo` distribuye las plantas entre workers.
+        Obtiene y valida los datos históricos mediante sus dependencias (Inventario de Activos,
+        Telemetría de Plantas y Reportes de Generación) y calcula la proyección de generación por
+        planta mediante regresión lineal. Acepta `modo` (`secuencial` o `paralelo`) y `workers`
+        según la convención común del sistema.
       parameters:
         - $ref: '#/components/parameters/EquipoConsumidor'
         - $ref: '#/components/parameters/Modo'
@@ -140,11 +97,9 @@ paths:
             schema:
               $ref: '#/components/schemas/SolicitudGeneracion'
             example:
-              plantaIds: [PL-001, PL-002, PL-003]
-              horizontePeriodos: 6
+              planta_ids: [PLANTA-001, PLANTA-002]
+              horizonte_periodos: 6
               frecuencia: hora
-              desde: '2026-11-01T00:00:00-05:00'
-              hasta: '2026-11-18T23:59:59-05:00'
       responses:
         '200':
           description: Pronósticos generados exitosamente.
@@ -156,11 +111,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ResultadoGeneracion'
               example:
-                generados: 3
+                modo_ejecucion: paralelo
+                backend_paralelismo: thread
+                origen_datos: dependencias
+                cantidad_plantas: 2
+                pronosticos:
+                  - planta_id: PLANTA-001
+                    metodo: regresion_lineal
+                    frecuencia: hora
+                    generado_en: '2026-11-19T14:00:00Z'
+                    valores:
+                      - periodo: '2026-11-19T15:00:00Z'
+                        generacion_kwh: 40.2
                 metricas:
                   modo: paralelo
                   workers: 2
-                  elementos: 3
+                  elementos: 2
                   duracionMs: 28
         '400':
           $ref: '#/components/responses/SolicitudInvalida'
@@ -272,7 +238,7 @@ components:
       description: Identificador único de la planta según Inventario de Activos.
       schema:
         $ref: '#/components/schemas/Identificador'
-      example: PL-001
+      example: PLANTA-001
 
   headers:
     # COMÚN
@@ -304,8 +270,8 @@ components:
             mensaje: La solicitud no cumple el contrato.
             requestId: 0a4e9c1d-3f2b-4e8a-b7c6-5d1e2f3a4b5c
             detalles:
-              - campo: desde
-                problema: debe ser una fecha RFC 3339 con zona horaria
+              - campo: planta_ids
+                problema: debe contener al menos un identificador de planta
     NoEncontrado:
       description: El recurso no existe.
       headers:
@@ -317,7 +283,7 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             codigo: NO_ENCONTRADO
-            mensaje: No existe pronóstico generado para la planta PL-999.
+            mensaje: No existe pronóstico generado para la planta PLANTA-999.
             requestId: 9c2f7e4a-1d3b-4a6c-8e5f-0b7d9a1c3e2f
     Conflicto:
       description: Ya existe un recurso con ese identificador o el estado actual impide la operación.
@@ -330,7 +296,7 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             codigo: DUPLICADO
-            mensaje: Ya existe un pronóstico activo para PL-001 en ese periodo.
+            mensaje: Ya existe un pronóstico activo para PLANTA-001 en ese periodo.
             requestId: 4d8b2a6e-7c1f-4e3a-9b5d-2f6a8c0e1b4d
     Sobrecarga:
       description: Capacidad de admisión agotada. Reintentar después de `Retry-After` segundos.
@@ -375,24 +341,21 @@ components:
             requestId: 3c6e9f2a-8b1d-4e7c-a5f0-6d2b9e1c4a7f
             detalles:
               - campo: equipo-2
-                problema: GET /telemetria/PL-001 respondió 503
+                problema: GET /telemetria/PLANTA-001 respondió 503
 
   examples:
     PronosticoEjemplo:
-      summary: Pronóstico horario de planta PL-001
+      summary: Pronóstico horario de planta PLANTA-001
       value:
-        id: PRON-PL-001
-        plantaId: PL-001
+        planta_id: PLANTA-001
+        metodo: regresion_lineal
         frecuencia: hora
-        horizontePeriodos: 6
-        energiaEsperadaKwh: 342.8
-        pendienteRegresion: 1.45
-        proyecciones:
-          - periodo: 1
-            energiaKwh: 55.2
-          - periodo: 2
-            energiaKwh: 56.65
-        generadoEn: '2026-11-19T14:00:00Z'
+        generado_en: '2026-11-19T14:00:00Z'
+        valores:
+          - periodo: '2026-11-19T15:00:00Z'
+            generacion_kwh: 40.2
+          - periodo: '2026-11-19T16:00:00Z'
+            generacion_kwh: 41.6
 
   schemas:
     # ------------------------------- COMÚN -------------------------------
@@ -401,7 +364,7 @@ components:
       minLength: 1
       maxLength: 64
       pattern: '^[A-Za-z0-9_-]+$'
-      example: PL-001
+      example: PLANTA-001
     Error:
       type: object
       additionalProperties: false
@@ -449,7 +412,7 @@ components:
       type: object
       additionalProperties: false
       required: [modo, workers, elementos, duracionMs]
-      description: Evidencia de cada ejecución intensiva, útil para el benchmark secuencial contra paralelo.
+      description: Evidencia de cada ejecución intensiva, útil para comparar ejecución secuencial contra paralela.
       properties:
         modo:
           type: string
@@ -466,71 +429,49 @@ components:
           minimum: 0
 
     # ------------------------- Pronóstico de Generación -------------------------
-    PuntoProyeccion:
+    ValorProyeccion:
       type: object
       additionalProperties: false
-      required: [periodo, energiaKwh]
+      required: [periodo, generacion_kwh]
       properties:
         periodo:
-          type: integer
-          minimum: 1
-        energiaKwh:
+          type: string
+          format: date-time
+        generacion_kwh:
           type: number
-    Pronostico:
+    PronosticoPlanta:
       type: object
       additionalProperties: false
-      required: [id, plantaId, frecuencia, horizontePeriodos, energiaEsperadaKwh, generadoEn]
+      required: [planta_id, metodo, frecuencia, generado_en, valores]
       properties:
-        id:
+        planta_id:
           $ref: '#/components/schemas/Identificador'
-        plantaId:
-          $ref: '#/components/schemas/Identificador'
+        metodo:
+          type: string
+          example: regresion_lineal
         frecuencia:
           type: string
           enum: [hora, dia]
           default: hora
-        horizontePeriodos:
-          type: integer
-          minimum: 1
-          maximum: 168
-        energiaEsperadaKwh:
-          type: number
-        pendienteRegresion:
-          type: number
-        proyecciones:
-          type: array
-          items:
-            $ref: '#/components/schemas/PuntoProyeccion'
-        generadoEn:
+        generado_en:
           type: string
           format: date-time
-    PaginaPronosticos:
-      type: object
-      additionalProperties: false
-      required: [datos, total, limit, offset]
-      properties:
-        datos:
+        valores:
           type: array
           items:
-            $ref: '#/components/schemas/Pronostico'
-        total:
-          type: integer
-          minimum: 0
-        limit:
-          type: integer
-        offset:
-          type: integer
+            $ref: '#/components/schemas/ValorProyeccion'
     SolicitudGeneracion:
       type: object
       additionalProperties: false
-      required: [desde, hasta]
+      required: [planta_ids]
       properties:
-        plantaIds:
+        planta_ids:
           type: array
-          description: Lista de plantas a pronosticar. Si se omite, se procesan todas las registradas.
+          minItems: 1
+          description: Lista no vacía de identificadores de plantas a pronosticar.
           items:
             $ref: '#/components/schemas/Identificador'
-        horizontePeriodos:
+        horizonte_periodos:
           type: integer
           minimum: 1
           maximum: 168
@@ -548,10 +489,25 @@ components:
     ResultadoGeneracion:
       type: object
       additionalProperties: false
-      required: [generados, metricas]
+      required: [modo_ejecucion, backend_paralelismo, cantidad_plantas, pronosticos, metricas]
       properties:
-        generados:
+        modo_ejecucion:
+          type: string
+          enum: [secuencial, paralelo]
+        backend_paralelismo:
+          type: string
+          enum: [thread, process, secuencial]
+        origen_datos:
+          type: string
+          example: dependencias
+        cantidad_plantas:
           type: integer
           minimum: 0
+        pronosticos:
+          type: array
+          items:
+            $ref: '#/components/schemas/PronosticoPlanta'
         metricas:
           $ref: '#/components/schemas/MetricasProcesamiento'
+        advertencia:
+          type: string
