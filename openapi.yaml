@@ -1,0 +1,557 @@
+openapi: 3.0.3
+info:
+  title: Voltrix Energy · Pronóstico de Generación
+  version: 1.0.0
+  description: |
+    Contrato HTTP del servicio **Pronóstico de Generación** (Equipo 5). Proyecta la generación futura
+    de energía por planta mediante regresión lineal paralelizada planta por planta.
+
+    **Servicios que consume:** Inventario de Activos (Equipo 1), Telemetría de Plantas (Equipo 2), Reportes de Generación (Equipo 4).
+
+    **Consumidores previstos**
+
+    | Equipo | Servicio | Operaciones que usa |
+    |---|---|---|
+    | 6 | Mantenimiento Predictivo | `GET /pronosticos/{plantaId}` |
+
+    **Convenciones comunes a todos los equipos**
+
+    - Fechas en RFC 3339 **con zona horaria** (`2026-11-19T14:00:00Z`).
+    - Identificadores de plantas y activos según Inventario (Equipo 1): `PL-001`, `PL-001-PS-07`.
+    - Cada consumidor envía `X-Equipo-Consumidor: equipo-<N>`; toda respuesta incluye `X-Request-Id`.
+      Ambos se escriben en los logs como evidencia de consumo real.
+    - Errores con el esquema común `Error` (`codigo`, `mensaje`, `requestId`, `detalles`).
+    - `429` con `Retry-After` ante sobrecarga, `503` si la base de datos no responde y `502` si un
+      servicio de otro equipo del que se depende falla.
+    - `GET /health` y `GET /openapi.yaml` existen en todos los servicios.
+    - Las operaciones de procesamiento intensivo aceptan `modo` (`secuencial` | `paralelo`) y
+      `workers`, y devuelven `MetricasProcesamiento` para comparar ambas versiones.
+  contact:
+    name: Equipo 5 · Pronóstico de Generación
+
+servers:                                                  # COMÚN
+  - url: http://{host}:{puerto}
+    description: Despliegue del Componente B (EC2) o entorno local. La dirección vigente está en la hoja Coordinacion_Voltrix.
+    variables:
+      host:
+        default: localhost
+        description: IP pública o DNS de la instancia EC2.
+      puerto:
+        default: "8000"
+
+tags:
+  - name: Pronosticos
+    description: Consulta de proyecciones de generación energética por planta.
+  - name: Procesamiento
+    description: Cálculo paralelo de modelos de regresión lineal por planta (descomposición de datos).
+  - name: Operación
+    description: Salud del servicio y publicación del contrato.
+
+paths:
+  /pronosticos/{plantaId}:
+    get:
+      tags: [Pronosticos]
+      operationId: consultarPronosticoPorPlanta
+      summary: Consultar el pronóstico vigente de una planta
+      parameters:
+        - $ref: '#/components/parameters/PlantaId'
+        - $ref: '#/components/parameters/EquipoConsumidor'
+      responses:
+        '200':
+          description: Pronóstico encontrado para la planta solicitada.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pronostico'
+              examples:
+                ejemplo:
+                  $ref: '#/components/examples/PronosticoEjemplo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '429':
+          $ref: '#/components/responses/Sobrecarga'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+
+  /pronosticos:
+    get:
+      tags: [Pronosticos]
+      operationId: listarPronosticos
+      summary: Listar pronósticos generados con filtros y paginación
+      parameters:
+        - $ref: '#/components/parameters/EquipoConsumidor'
+        - name: plantaId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Identificador'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Página de pronósticos.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaPronosticos'
+              example:
+                datos:
+                  - id: PRON-PL-001
+                    plantaId: PL-001
+                    frecuencia: hora
+                    horizontePeriodos: 6
+                    energiaEsperadaKwh: 342.8
+                    pendienteRegresion: 1.45
+                    generadoEn: '2026-11-19T14:00:00Z'
+                total: 1
+                limit: 50
+                offset: 0
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '429':
+          $ref: '#/components/responses/Sobrecarga'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+
+  /pronosticos/generar:
+    post:
+      tags: [Procesamiento]
+      operationId: generarPronosticos
+      summary: Calcular pronósticos de generación por planta en paralelo
+      description: |
+        Obtiene los activos operativos (Equipo 1), lecturas de telemetría (Equipo 2) y agregados
+        históricos (Equipo 4) para las plantas solicitadas, y descompone los datos planta por
+        planta para entrenar y proyectar modelos de regresión lineal en paralelo. Con `modo=secuencial`
+        ejecuta la línea base; con `modo=paralelo` distribuye las plantas entre workers.
+      parameters:
+        - $ref: '#/components/parameters/EquipoConsumidor'
+        - $ref: '#/components/parameters/Modo'
+        - $ref: '#/components/parameters/Workers'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudGeneracion'
+            example:
+              plantaIds: [PL-001, PL-002, PL-003]
+              horizontePeriodos: 6
+              frecuencia: hora
+              desde: '2026-11-01T00:00:00-05:00'
+              hasta: '2026-11-18T23:59:59-05:00'
+      responses:
+        '200':
+          description: Pronósticos generados exitosamente.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoGeneracion'
+              example:
+                generados: 3
+                metricas:
+                  modo: paralelo
+                  workers: 2
+                  elementos: 3
+                  duracionMs: 28
+        '400':
+          $ref: '#/components/responses/SolicitudInvalida'
+        '429':
+          $ref: '#/components/responses/Sobrecarga'
+        '502':
+          $ref: '#/components/responses/DependenciaFallida'
+        '503':
+          $ref: '#/components/responses/NoDisponible'
+
+  # --------------------------- COMÚN ---------------------------
+  /health:
+    get:
+      tags: [Operación]
+      operationId: consultarSalud
+      summary: Comprobar la disponibilidad del servicio y de su base de datos
+      description: No exige `X-Equipo-Consumidor`. Debe responder rápido y sin llamar a otros equipos de forma bloqueante.
+      responses:
+        '200':
+          description: Servicio disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Salud'
+              example:
+                estado: disponible
+                baseDatos: ok
+                version: 1.0.0
+                tiempoActivoSeg: 3600
+        '503':
+          description: El servicio no puede acceder a su base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Salud'
+              example:
+                estado: no_disponible
+                baseDatos: error
+                version: 1.0.0
+                tiempoActivoSeg: 3600
+
+  /openapi.yaml:
+    get:
+      tags: [Operación]
+      operationId: obtenerContrato
+      summary: Descargar este contrato
+      description: URL que se registra en la columna "URL del contrato OpenAPI" de la hoja Coordinacion_Voltrix.
+      responses:
+        '200':
+          description: Contrato en formato YAML.
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+components:
+  parameters:
+    # COMÚN
+    EquipoConsumidor:
+      name: X-Equipo-Consumidor
+      in: header
+      required: false
+      description: Equipo que hace la llamada. Se registra en los logs como evidencia de consumo entre células.
+      schema:
+        type: string
+        pattern: '^equipo-[1-7]$'
+        example: equipo-6
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Tamaño de página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Número de elementos a omitir.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Modo:
+      name: modo
+      in: query
+      required: false
+      description: Versión del procesamiento a ejecutar (línea base o técnica paralela/concurrente).
+      schema:
+        type: string
+        enum: [secuencial, paralelo]
+        default: paralelo
+    Workers:
+      name: workers
+      in: query
+      required: false
+      description: Número de hilos, goroutines, procesos o workers a usar en modo paralelo. Por defecto lo decide el servicio.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 64
+    PlantaId:
+      name: plantaId
+      in: path
+      required: true
+      description: Identificador único de la planta según Inventario de Activos.
+      schema:
+        $ref: '#/components/schemas/Identificador'
+      example: PL-001
+
+  headers:
+    # COMÚN
+    X-Request-Id:
+      description: Identificador de la petición, presente también en los logs del servicio.
+      schema:
+        type: string
+        format: uuid
+    Retry-After:
+      description: Segundos que el consumidor debe esperar antes de reintentar.
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+
+  responses:
+    # COMÚN
+    SolicitudInvalida:
+      description: La solicitud no cumple el contrato.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: SOLICITUD_INVALIDA
+            mensaje: La solicitud no cumple el contrato.
+            requestId: 0a4e9c1d-3f2b-4e8a-b7c6-5d1e2f3a4b5c
+            detalles:
+              - campo: desde
+                problema: debe ser una fecha RFC 3339 con zona horaria
+    NoEncontrado:
+      description: El recurso no existe.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: NO_ENCONTRADO
+            mensaje: No existe pronóstico generado para la planta PL-999.
+            requestId: 9c2f7e4a-1d3b-4a6c-8e5f-0b7d9a1c3e2f
+    Conflicto:
+      description: Ya existe un recurso con ese identificador o el estado actual impide la operación.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: DUPLICADO
+            mensaje: Ya existe un pronóstico activo para PL-001 en ese periodo.
+            requestId: 4d8b2a6e-7c1f-4e3a-9b5d-2f6a8c0e1b4d
+    Sobrecarga:
+      description: Capacidad de admisión agotada. Reintentar después de `Retry-After` segundos.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/Retry-After'
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: SOBRECARGA
+            mensaje: El servicio está atendiendo el máximo de peticiones simultáneas.
+            requestId: 2e7a4c9b-6d1f-4b8e-a3c5-7f0d2b9e4a1c
+    NoDisponible:
+      description: Base de datos o servicio no disponible.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: NO_DISPONIBLE
+            mensaje: No hay conexión con la base de datos.
+            requestId: 8f1b3d5a-2c7e-4f9a-b6d0-1e4c7a9b2d5f
+    DependenciaFallida:
+      description: Un servicio de otro equipo del que se depende no respondió o respondió con error.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/X-Request-Id'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            codigo: DEPENDENCIA_FALLIDA
+            mensaje: Telemetría de Plantas respondió 503.
+            requestId: 3c6e9f2a-8b1d-4e7c-a5f0-6d2b9e1c4a7f
+            detalles:
+              - campo: equipo-2
+                problema: GET /telemetria/PL-001 respondió 503
+
+  examples:
+    PronosticoEjemplo:
+      summary: Pronóstico horario de planta PL-001
+      value:
+        id: PRON-PL-001
+        plantaId: PL-001
+        frecuencia: hora
+        horizontePeriodos: 6
+        energiaEsperadaKwh: 342.8
+        pendienteRegresion: 1.45
+        proyecciones:
+          - periodo: 1
+            energiaKwh: 55.2
+          - periodo: 2
+            energiaKwh: 56.65
+        generadoEn: '2026-11-19T14:00:00Z'
+
+  schemas:
+    # ------------------------------- COMÚN -------------------------------
+    Identificador:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]+$'
+      example: PL-001
+    Error:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje, requestId]
+      properties:
+        codigo:
+          type: string
+          pattern: '^[A-Z_]+$'
+          description: |
+            Código estable en MAYÚSCULAS. Comunes: SOLICITUD_INVALIDA, NO_ENCONTRADO, DUPLICADO,
+            SOBRECARGA, NO_DISPONIBLE, DEPENDENCIA_FALLIDA, ERROR_INTERNO.
+          example: NO_ENCONTRADO
+        mensaje:
+          type: string
+        requestId:
+          type: string
+        detalles:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [campo, problema]
+            properties:
+              campo:
+                type: string
+              problema:
+                type: string
+    Salud:
+      type: object
+      additionalProperties: false
+      required: [estado, baseDatos]
+      properties:
+        estado:
+          type: string
+          enum: [disponible, no_disponible]
+        baseDatos:
+          type: string
+          enum: [ok, error]
+        version:
+          type: string
+        tiempoActivoSeg:
+          type: integer
+          minimum: 0
+    MetricasProcesamiento:
+      type: object
+      additionalProperties: false
+      required: [modo, workers, elementos, duracionMs]
+      description: Evidencia de cada ejecución intensiva, útil para el benchmark secuencial contra paralelo.
+      properties:
+        modo:
+          type: string
+          enum: [secuencial, paralelo]
+        workers:
+          type: integer
+          minimum: 1
+        elementos:
+          type: integer
+          minimum: 0
+          description: Cantidad de plantas procesadas en el lote.
+        duracionMs:
+          type: integer
+          minimum: 0
+
+    # ------------------------- Pronóstico de Generación -------------------------
+    PuntoProyeccion:
+      type: object
+      additionalProperties: false
+      required: [periodo, energiaKwh]
+      properties:
+        periodo:
+          type: integer
+          minimum: 1
+        energiaKwh:
+          type: number
+    Pronostico:
+      type: object
+      additionalProperties: false
+      required: [id, plantaId, frecuencia, horizontePeriodos, energiaEsperadaKwh, generadoEn]
+      properties:
+        id:
+          $ref: '#/components/schemas/Identificador'
+        plantaId:
+          $ref: '#/components/schemas/Identificador'
+        frecuencia:
+          type: string
+          enum: [hora, dia]
+          default: hora
+        horizontePeriodos:
+          type: integer
+          minimum: 1
+          maximum: 168
+        energiaEsperadaKwh:
+          type: number
+        pendienteRegresion:
+          type: number
+        proyecciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/PuntoProyeccion'
+        generadoEn:
+          type: string
+          format: date-time
+    PaginaPronosticos:
+      type: object
+      additionalProperties: false
+      required: [datos, total, limit, offset]
+      properties:
+        datos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pronostico'
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+        offset:
+          type: integer
+    SolicitudGeneracion:
+      type: object
+      additionalProperties: false
+      required: [desde, hasta]
+      properties:
+        plantaIds:
+          type: array
+          description: Lista de plantas a pronosticar. Si se omite, se procesan todas las registradas.
+          items:
+            $ref: '#/components/schemas/Identificador'
+        horizontePeriodos:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 6
+        frecuencia:
+          type: string
+          enum: [hora, dia]
+          default: hora
+        desde:
+          type: string
+          format: date-time
+        hasta:
+          type: string
+          format: date-time
+    ResultadoGeneracion:
+      type: object
+      additionalProperties: false
+      required: [generados, metricas]
+      properties:
+        generados:
+          type: integer
+          minimum: 0
+        metricas:
+          $ref: '#/components/schemas/MetricasProcesamiento'
