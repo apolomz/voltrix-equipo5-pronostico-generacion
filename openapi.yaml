@@ -29,9 +29,9 @@ info:
   contact:
     name: Equipo 5 · Pronóstico de Generación
 
-servers:                                                  # COMÚN
+servers:
   - url: http://{host}:{puerto}
-    description: Despliegue del Componente B (EC2) o entorno local. La dirección vigente está en la hoja Coordinacion_Voltrix.
+    description: Despliegue del entorno local.
     variables:
       host:
         default: localhost
@@ -137,7 +137,6 @@ paths:
         '503':
           $ref: '#/components/responses/NoDisponible'
 
-  # --------------------------- COMÚN ---------------------------
   /health:
     get:
       tags: [Operación]
@@ -184,7 +183,6 @@ paths:
 
 components:
   parameters:
-    # COMÚN
     EquipoConsumidor:
       name: X-Equipo-Consumidor
       in: header
@@ -241,7 +239,6 @@ components:
       example: PLANTA-001
 
   headers:
-    # COMÚN
     X-Request-Id:
       description: Identificador de la petición, presente también en los logs del servicio.
       schema:
@@ -255,7 +252,6 @@ components:
         example: 1
 
   responses:
-    # COMÚN
     SolicitudInvalida:
       description: La solicitud no cumple el contrato.
       headers:
@@ -358,7 +354,6 @@ components:
             generacion_kwh: 41.6
 
   schemas:
-    # ------------------------------- COMÚN -------------------------------
     Identificador:
       type: string
       minLength: 1
@@ -428,7 +423,6 @@ components:
           type: integer
           minimum: 0
 
-    # ------------------------- Pronóstico de Generación -------------------------
     ValorProyeccion:
       type: object
       additionalProperties: false
