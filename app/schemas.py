@@ -10,13 +10,18 @@ class Frecuencia(str, Enum):
     DIA = "dia"
 
 
+class ModoEjecucion(str, Enum):
+    SECUENCIAL = "secuencial"
+    PARALELO = "paralelo"
+
+
 class SolicitudGeneracion(BaseModel):
     """Solicitud para generar pronósticos de una o varias plantas."""
 
     planta_ids: list[str] = Field(
         min_length=1,
         description="Identificadores de las plantas que se desean pronosticar.",
-        examples=[["PLANTA-001", "PLANTA-002"]],
+        examples=[["PL-001", "PL-002"]],
     )
     horizonte_periodos: int = Field(
         default=6,
@@ -28,6 +33,14 @@ class SolicitudGeneracion(BaseModel):
     frecuencia: Frecuencia = Field(
         default=Frecuencia.HORA,
         description="Resolución temporal del pronóstico.",
+    )
+    desde: datetime | None = Field(
+        default=None,
+        description="Inicio opcional del rango histórico (RFC 3339 con zona horaria).",
+    )
+    hasta: datetime | None = Field(
+        default=None,
+        description="Fin opcional del rango histórico (RFC 3339 con zona horaria).",
     )
 
 
@@ -44,12 +57,20 @@ class PronosticoPlanta(BaseModel):
     valores: list[PuntoPronostico]
 
 
+class MetricasProcesamiento(BaseModel):
+    modo: ModoEjecucion
+    workers: int = Field(ge=1)
+    elementos: int = Field(ge=0)
+    duracionMs: int = Field(ge=0)
+
+
 class RespuestaGeneracion(BaseModel):
-    modo_ejecucion: Literal["paralelo", "secuencial_por_una_planta"]
+    modo_ejecucion: ModoEjecucion
     backend_paralelismo: Literal["secuencial", "thread", "process"]
-    origen_datos: Literal["demo"] = "demo"
+    origen_datos: str = "demo"
     cantidad_plantas: int
     pronosticos: list[PronosticoPlanta]
+    metricas: MetricasProcesamiento
     advertencia: str = (
         "Prototipo académico: se usan datos simulados. La integración real con "
         "Inventario, Telemetría y Reportes está pendiente de acordar sus contratos."
@@ -57,5 +78,19 @@ class RespuestaGeneracion(BaseModel):
 
 
 class RespuestaSalud(BaseModel):
-    status: Literal["ok"] = "ok"
-    servicio: str = "pronostico-generacion"
+    estado: Literal["disponible", "no_disponible"] = "disponible"
+    baseDatos: Literal["ok", "error"] = "ok"
+    version: str = "1.0.0"
+    tiempoActivoSeg: int = Field(ge=0)
+
+
+class DetalleError(BaseModel):
+    campo: str
+    problema: str
+
+
+class ErrorResponse(BaseModel):
+    codigo: str
+    mensaje: str
+    requestId: str
+    detalles: list[DetalleError] | None = None

@@ -13,6 +13,7 @@ RUN python -m pip install --upgrade pip \
 COPY app ./app
 COPY scripts ./scripts
 COPY docs ./docs
+COPY openapi.yaml ./openapi.yaml
 
 # Ejecutar como usuario sin privilegios de root.
 RUN useradd --create-home --uid 10001 appuser \
