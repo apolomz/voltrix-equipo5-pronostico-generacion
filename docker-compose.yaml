@@ -1,19 +1,91 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: voltrix-equipo5-db
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voltrix}
+      POSTGRES_USER: ${POSTGRES_USER:-voltrix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD en .env}
+
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_parallel_workers=0
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - voltrix-network
+
+    restart: unless-stopped
+
+    mem_limit: 256m
+    cpus: "0.50"
+    pids_limit: 64
+    shm_size: 64mb
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
+
     container_name: voltrix-equipo5-api
+
+    env_file:
+      - .env
+
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
+
     environment:
-      DEMO_MODE: "true"
-      MAX_WORKERS: "2"
-      PARALLEL_BACKEND: "thread"
+      DEMO_MODE: ${DEMO_MODE:-true}
+      MAX_WORKERS: ${MAX_WORKERS:-2}
+      PARALLEL_BACKEND: ${PARALLEL_BACKEND:-thread}
+      MAX_CONCURRENT_REQUESTS: ${MAX_CONCURRENT_REQUESTS:-1}
+
+      INVENTARIO_URL: ${INVENTARIO_URL:-http://localhost:8001}
+      TELEMETRIA_URL: ${TELEMETRIA_URL:-http://localhost:8002}
+      REPORTES_URL: ${REPORTES_URL:-http://localhost:8004}
+
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-voltrix}
+      PGUSER: ${POSTGRES_USER:-voltrix}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD en .env}
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - voltrix-network
+
     restart: unless-stopped
     init: true
-    mem_limit: 768m
-    cpus: 2.0
+
+    mem_limit: 384m
+    cpus: "1.0"
+    pids_limit: 128
+
     healthcheck:
       test:
         - CMD
@@ -23,4 +95,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+
+networks:
+  voltrix-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: voltrix-equipo5-postgres-data

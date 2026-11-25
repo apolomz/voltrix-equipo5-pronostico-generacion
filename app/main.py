@@ -9,6 +9,7 @@ import uuid
 from fastapi import FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 
 from . import store
 from .demo_data import obtener_historico_demo
@@ -59,8 +60,15 @@ class ServiceError(Exception):
         super().__init__(mensaje)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store.inicializar()
+    yield
+
+
 app = FastAPI(
     title="Voltrix Energy - Pronóstico de Generación",
+    lifespan=lifespan,
     description=(
         "API del Equipo 5 para estimar la generación futura por planta. "
         "Incluye descomposición de datos por planta y control de concurrencia."
@@ -71,7 +79,6 @@ app = FastAPI(
         {"name": "Pronósticos", "description": "Generación y consulta de pronósticos."},
     ],
 )
-
 
 @app.middleware("http")
 async def trazabilidad_middleware(request: Request, call_next):
@@ -134,16 +141,31 @@ async def manejar_validacion_error(request: Request, exc: RequestValidationError
     )
 
 
-@app.get("/health", response_model=RespuestaSalud, tags=["Operación"])
-def health() -> RespuestaSalud:
+@app.get(
+    "/health",
+    response_model=RespuestaSalud,
+    responses={503: {"model": RespuestaSalud}},
+    tags=["Operación"]
+)
+def health():
     tiempo_activo = int(time.monotonic() - INICIO_SERVICIO)
 
-    return RespuestaSalud(
-        estado="disponible",
-        baseDatos="ok",
+    db_ok = store.esta_disponible()
+
+    respuesta = RespuestaSalud(
+        estado="disponible" if db_ok else "no_disponible",
+        baseDatos="ok" if db_ok else "error",
         version="1.0.0",
         tiempoActivoSeg=tiempo_activo,
     )
+
+    if not db_ok:
+        return JSONResponse(
+            status_code=503,
+            content=respuesta.model_dump()
+        )
+
+    return respuesta
 
 
 @app.get("/openapi.yaml", tags=["Operación"], summary="Descargar contrato OpenAPI en YAML")
