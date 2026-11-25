@@ -1,0 +1,433 @@
+{
+  "info": {
+    "_postman_id": "5f0f7d8e-4b2a-4c1e-9d3a-7b6c5e4f2a10",
+    "name": "Voltrix Equipo 5 · Pronóstico de Generación",
+    "description": "Colección para demostrar el modo demo y los backends secuencial, hilos y procesos. Importar junto con el environment Voltrix Local.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 · Operación",
+      "item": [
+        {
+          "name": "Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Servicio disponible\", () => pm.expect(data.estado).to.eql(\"disponible\"));",
+                  "pm.test(\"Base de datos OK\", () => pm.expect(data.baseDatos).to.eql(\"ok\"));",
+                  "console.log(\"health:\", JSON.stringify(data));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-health-001"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Dependencias",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Modo demo\", () => pm.expect(data.modoDatos).to.eql(\"demo\"));",
+                  "pm.test(\"Tres fuentes\", () => pm.expect(data.fuentes).to.have.lengthOf(3));",
+                  "data.fuentes.forEach(f => pm.test(f.equipo + \" no aplica en demo\", () => pm.expect(f.estado).to.eql(\"no_aplica\")));",
+                  "console.log(\"dependencias:\", JSON.stringify(data));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-dependencias-001"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dependencias/estado",
+              "host": ["{{base_url}}"],
+              "path": ["dependencias", "estado"]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI YAML",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es YAML\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"yaml\"));",
+                  "pm.test(\"Contiene openapi\", () => pm.expect(pm.response.text()).to.include(\"openapi:\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/openapi.yaml",
+              "host": ["{{base_url}}"],
+              "path": ["openapi.yaml"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 · Pronósticos",
+      "item": [
+        {
+          "name": "Generar secuencial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Backend secuencial\", () => pm.expect(data.backend_paralelismo).to.eql(\"secuencial\"));",
+                  "pm.test(\"Un worker\", () => pm.expect(data.metricas.workers).to.eql(1));",
+                  "pm.test(\"Tres plantas\", () => pm.expect(data.cantidad_plantas).to.eql(3));",
+                  "pm.test(\"Origen demo\", () => pm.expect(data.origen_datos).to.eql(\"demo\"));",
+                  "pm.test(\"Header X-Modo-Datos\", () => pm.expect(pm.response.headers.get(\"X-Modo-Datos\")).to.eql(\"demo\"));",
+                  "console.log(\"secuencial:\", JSON.stringify(data.metricas));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-secuencial-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planta_ids\": [\"PL-001\", \"PL-002\", \"PL-003\"],\n  \"horizonte_periodos\": 6,\n  \"frecuencia\": \"hora\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pronosticos/generar?modo=secuencial",
+              "host": ["{{base_url}}"],
+              "path": ["pronosticos", "generar"],
+              "query": [
+                {
+                  "key": "modo",
+                  "value": "secuencial"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generar con hilos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Backend thread\", () => pm.expect(data.backend_paralelismo).to.eql(\"thread\"));",
+                  "pm.test(\"Dos workers\", () => pm.expect(data.metricas.workers).to.eql(2));",
+                  "pm.test(\"Tres plantas\", () => pm.expect(data.cantidad_plantas).to.eql(3));",
+                  "pm.test(\"Origen demo\", () => pm.expect(data.origen_datos).to.eql(\"demo\"));",
+                  "pm.test(\"Header X-Backend-Paralelismo\", () => pm.expect(pm.response.headers.get(\"X-Backend-Paralelismo\")).to.eql(\"thread\"));",
+                  "console.log(\"hilos:\", JSON.stringify(data.metricas));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-thread-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planta_ids\": [\"PL-001\", \"PL-002\", \"PL-003\"],\n  \"horizonte_periodos\": 6,\n  \"frecuencia\": \"hora\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pronosticos/generar?modo=paralelo&backend=thread&workers=2",
+              "host": ["{{base_url}}"],
+              "path": ["pronosticos", "generar"],
+              "query": [
+                {
+                  "key": "modo",
+                  "value": "paralelo"
+                },
+                {
+                  "key": "backend",
+                  "value": "thread"
+                },
+                {
+                  "key": "workers",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generar con procesos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Backend process\", () => pm.expect(data.backend_paralelismo).to.eql(\"process\"));",
+                  "pm.test(\"Dos workers\", () => pm.expect(data.metricas.workers).to.eql(2));",
+                  "pm.test(\"Tres plantas\", () => pm.expect(data.cantidad_plantas).to.eql(3));",
+                  "pm.test(\"Origen demo\", () => pm.expect(data.origen_datos).to.eql(\"demo\"));",
+                  "pm.test(\"Header X-Backend-Paralelismo\", () => pm.expect(pm.response.headers.get(\"X-Backend-Paralelismo\")).to.eql(\"process\"));",
+                  "console.log(\"procesos:\", JSON.stringify(data.metricas));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-process-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planta_ids\": [\"PL-001\", \"PL-002\", \"PL-003\"],\n  \"horizonte_periodos\": 6,\n  \"frecuencia\": \"hora\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pronosticos/generar?modo=paralelo&backend=process&workers=2",
+              "host": ["{{base_url}}"],
+              "path": ["pronosticos", "generar"],
+              "query": [
+                {
+                  "key": "modo",
+                  "value": "paralelo"
+                },
+                {
+                  "key": "backend",
+                  "value": "process"
+                },
+                {
+                  "key": "workers",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar último pronóstico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Planta PL-001\", () => pm.expect(data.planta_id).to.eql(\"PL-001\"));",
+                  "pm.test(\"Tiene valores\", () => pm.expect(data.valores.length).to.be.greaterThan(0));",
+                  "console.log(\"pronóstico:\", data.planta_id, data.valores.length, \"puntos\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-consulta-001"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pronosticos/{{planta_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["pronosticos", "{{planta_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Generar lote de 80 plantas (opcional)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ids = Array.from({ length: 80 }, (_, i) => \"PL-\" + String(i + 1).padStart(3, \"0\"));",
+                  "pm.variables.set(\"plantas_80\", JSON.stringify(ids));",
+                  "console.log(\"plantas:\", ids.length);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "var data = pm.response.json();",
+                  "pm.test(\"80 plantas\", () => pm.expect(data.cantidad_plantas).to.eql(80));",
+                  "pm.test(\"Origen demo\", () => pm.expect(data.origen_datos).to.eql(\"demo\"));",
+                  "console.log(\"lote 80:\", JSON.stringify(data.metricas));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Equipo-Consumidor",
+                "value": "equipo-6"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-lote80-001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planta_ids\": {{plantas_80}},\n  \"horizonte_periodos\": 24,\n  \"frecuencia\": \"hora\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/pronosticos/generar?modo=paralelo&backend=process&workers=2",
+              "host": ["{{base_url}}"],
+              "path": ["pronosticos", "generar"],
+              "query": [
+                {
+                  "key": "modo",
+                  "value": "paralelo"
+                },
+                {
+                  "key": "backend",
+                  "value": "process"
+                },
+                {
+                  "key": "workers",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "planta_id",
+      "value": "PL-001"
+    }
+  ]
+}
