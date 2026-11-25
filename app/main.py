@@ -1,4 +1,9 @@
-from datetime import datetime, timedelta, timezone
+"""API FastAPI del servicio de Pronóstico de Generación (Equipo 5)."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
@@ -9,26 +14,28 @@ import uuid
 from fastapi import FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
+import httpx
 
-from . import store
-from .demo_data import obtener_historico_demo
-from .forecast import calcular_distribuido, calcular_secuencial
+from . import forecast, store
+from .config import Config
 from .schemas import (
+    BackendEjecucion,
     DetalleError,
     ErrorResponse,
-    Frecuencia,
-    MetricasProcesamiento,
+    EstadoFuente,
     ModoEjecucion,
     PronosticoPlanta,
-    PuntoPronostico,
+    RespuestaDependencias,
     RespuestaGeneracion,
     RespuestaSalud,
     SolicitudGeneracion,
 )
+from .services import generar_pronosticos
+from .sources import DataInputService
+from .sources.errors import ErrorDatos
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger("voltrix.equipo5")
@@ -36,8 +43,8 @@ logger = logging.getLogger("voltrix.equipo5")
 INICIO_SERVICIO = time.monotonic()
 OPENAPI_PATH = Path(__file__).resolve().parent.parent / "openapi.yaml"
 
-# Semáforo para proteger memoria en EC2 (1 GiB RAM) ante ráfagas concurrentes
-MAX_CONCURRENT_REQUESTS = max(1, int(os.getenv("MAX_CONCURRENT_REQUESTS", "2")))
+# Semáforo para proteger memoria en EC2 (1 GiB RAM) ante ráfagas concurrentes.
+MAX_CONCURRENT_REQUESTS = max(1, int(os.getenv("MAX_CONCURRENT_REQUESTS", "1")))
 _SEMAFORO_GENERACION = threading.Semaphore(MAX_CONCURRENT_REQUESTS)
 
 
@@ -63,7 +70,15 @@ class ServiceError(Exception):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store.inicializar()
-    yield
+    app.state.http_client = httpx.Client(
+        timeout=float(os.getenv("HTTP_TIMEOUT", "5")),
+        limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+    )
+    try:
+        yield
+    finally:
+        app.state.http_client.close()
+        forecast.cerrar_pools()
 
 
 app = FastAPI(
@@ -71,14 +86,17 @@ app = FastAPI(
     lifespan=lifespan,
     description=(
         "API del Equipo 5 para estimar la generación futura por planta. "
-        "Incluye descomposición de datos por planta y control de concurrencia."
+        "Incluye descomposición de datos por planta, ejecución secuencial, "
+        "por hilos o por procesos, y una capa de entrada de datos con modo demo "
+        "y clientes para Inventario, Telemetría y Reportes."
     ),
     version="1.0.0",
     openapi_tags=[
-        {"name": "Operación", "description": "Salud del servicio y contrato OpenAPI."},
+        {"name": "Operación", "description": "Salud del servicio, contrato y dependencias."},
         {"name": "Pronósticos", "description": "Generación y consulta de pronósticos."},
     ],
 )
+
 
 @app.middleware("http")
 async def trazabilidad_middleware(request: Request, call_next):
@@ -103,14 +121,44 @@ async def trazabilidad_middleware(request: Request, call_next):
     return response
 
 
+def _request_id(request: Request) -> str:
+    return getattr(request.state, "request_id", str(uuid.uuid4()))
+
+
+def _detalles(detalles: list[dict] | None) -> list[DetalleError] | None:
+    if not detalles:
+        return None
+    return [
+        DetalleError(
+            campo=str(detalle.get("campo", "")),
+            problema=str(detalle.get("problema", "")),
+        )
+        for detalle in detalles
+    ]
+
+
 @app.exception_handler(ServiceError)
 async def manejar_service_error(request: Request, exc: ServiceError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     cuerpo = ErrorResponse(
         codigo=exc.codigo,
         mensaje=exc.mensaje,
-        requestId=request_id,
+        requestId=_request_id(request),
         detalles=exc.detalles,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=cuerpo.model_dump(exclude_none=True),
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(ErrorDatos)
+async def manejar_error_datos(request: Request, exc: ErrorDatos) -> JSONResponse:
+    cuerpo = ErrorResponse(
+        codigo=exc.codigo,
+        mensaje=exc.mensaje,
+        requestId=_request_id(request),
+        detalles=_detalles(exc.detalles),
     )
     return JSONResponse(
         status_code=exc.status_code,
@@ -121,7 +169,7 @@ async def manejar_service_error(request: Request, exc: ServiceError) -> JSONResp
 
 @app.exception_handler(RequestValidationError)
 async def manejar_validacion_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    request_id = _request_id(request)
     detalles = [
         DetalleError(
             campo=".".join(str(loc) for loc in err["loc"] if loc != "body"),
@@ -141,15 +189,25 @@ async def manejar_validacion_error(request: Request, exc: RequestValidationError
     )
 
 
+@app.exception_handler(Exception)
+async def manejar_error_no_controlado(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("request_id=%s error_no_controlado=%s", _request_id(request), exc)
+    cuerpo = ErrorResponse(
+        codigo="ERROR_INTERNO",
+        mensaje="Ocurrió un error interno al procesar la solicitud.",
+        requestId=_request_id(request),
+    )
+    return JSONResponse(status_code=500, content=cuerpo.model_dump(exclude_none=True))
+
+
 @app.get(
     "/health",
     response_model=RespuestaSalud,
     responses={503: {"model": RespuestaSalud}},
-    tags=["Operación"]
+    tags=["Operación"],
 )
 def health():
     tiempo_activo = int(time.monotonic() - INICIO_SERVICIO)
-
     db_ok = store.esta_disponible()
 
     respuesta = RespuestaSalud(
@@ -160,10 +218,7 @@ def health():
     )
 
     if not db_ok:
-        return JSONResponse(
-            status_code=503,
-            content=respuesta.model_dump()
-        )
+        return JSONResponse(status_code=503, content=respuesta.model_dump())
 
     return respuesta
 
@@ -180,14 +235,45 @@ def obtener_contrato_yaml() -> Response:
     return Response(content=contenido, media_type="application/yaml")
 
 
+@app.get(
+    "/dependencias/estado",
+    response_model=RespuestaDependencias,
+    tags=["Operación"],
+    summary="Comprobar la conectividad con Inventario, Telemetría y Reportes",
+)
+def estado_dependencias(request: Request) -> RespuestaDependencias:
+    config = Config.desde_entorno()
+    servicio = DataInputService(
+        config, http_client=getattr(request.app.state, "http_client", None)
+    )
+    try:
+        fuentes = servicio.estado_dependencias(request_id=_request_id(request))
+    finally:
+        servicio.cerrar()
+
+    return RespuestaDependencias(
+        modoDatos="demo" if config.demo_mode else "real",
+        fuentes=[EstadoFuente.model_validate(fuente) for fuente in fuentes],
+    )
+
+
 @app.post(
     "/pronosticos/generar",
     response_model=RespuestaGeneracion,
     status_code=200,
     tags=["Pronósticos"],
     summary="Generar pronósticos para varias plantas",
+    responses={
+        400: {"description": "Solicitud o rango inválido."},
+        404: {"description": "Alguna planta no existe en Inventario."},
+        429: {"description": "Sobrecarga; reintentar con Retry-After."},
+        502: {"description": "Una dependencia falló o no hay datos disponibles."},
+        503: {"description": "Base de datos o configuración no disponible."},
+    },
 )
-def generar_pronosticos(
+def generar_pronosticos_endpoint(
+    request: Request,
+    response: Response,
     solicitud: SolicitudGeneracion,
     modo: ModoEjecucion = Query(
         default=ModoEjecucion.PARALELO,
@@ -199,6 +285,10 @@ def generar_pronosticos(
         le=64,
         description="Cantidad de workers a emplear en modo paralelo.",
     ),
+    backend: BackendEjecucion | None = Query(
+        default=None,
+        description="Backend paralelo: auto, thread o process. Si se omite, usa PARALLEL_BACKEND.",
+    ),
 ) -> RespuestaGeneracion:
     if not _SEMAFORO_GENERACION.acquire(blocking=False):
         raise ServiceError(
@@ -209,70 +299,28 @@ def generar_pronosticos(
         )
 
     try:
-        frecuencia = solicitud.frecuencia.value
-        tareas = []
-        historicos_por_planta: dict[str, list[dict]] = {}
-
-        for planta_id in solicitud.planta_ids:
-            historico = obtener_historico_demo(planta_id, frecuencia)
-            historicos_por_planta[planta_id] = historico
-            tareas.append(
-                (
-                    planta_id,
-                    [punto["generacion_kwh"] for punto in historico],
-                    solicitud.horizonte_periodos,
-                )
+        config = Config.desde_entorno()
+        try:
+            respuesta = generar_pronosticos(
+                solicitud,
+                modo=modo,
+                workers=workers,
+                backend=backend.value if backend is not None else None,
+                request_id=_request_id(request),
+                config=config,
+                http_client=getattr(request.app.state, "http_client", None),
             )
+        except ValueError as exc:
+            raise ServiceError(
+                status_code=400,
+                codigo="SERIE_INVALIDA",
+                mensaje=str(exc),
+            ) from exc
 
-        inicio_calculo = time.perf_counter()
-        if modo == ModoEjecucion.SECUENCIAL or len(tareas) <= 1:
-            resultados = calcular_secuencial(tareas)
-            backend = "secuencial"
-            modo_efectivo = ModoEjecucion.SECUENCIAL
-            workers_usados = 1
-        else:
-            backend, resultados = calcular_distribuido(tareas, max_workers=workers)
-            modo_efectivo = ModoEjecucion.PARALELO
-            configurados = workers or int(os.getenv("MAX_WORKERS", "2"))
-            nucleos = os.cpu_count() or 1
-            workers_usados = max(1, min(configurados, nucleos, len(tareas)))
-        duracion_ms = max(0, round((time.perf_counter() - inicio_calculo) * 1000))
-
-        generado_en = datetime.now(timezone.utc)
-        paso = timedelta(hours=1) if solicitud.frecuencia == Frecuencia.HORA else timedelta(days=1)
-        pronosticos = []
-
-        for resultado in resultados:
-            planta_id = resultado["planta_id"]
-            ultimo_periodo = historicos_por_planta[planta_id][-1]["periodo"]
-            puntos = [
-                PuntoPronostico(
-                    periodo=ultimo_periodo + paso * (indice + 1),
-                    generacion_kwh=valor,
-                )
-                for indice, valor in enumerate(resultado["predicciones"])
-            ]
-            pronostico = PronosticoPlanta(
-                planta_id=planta_id,
-                frecuencia=solicitud.frecuencia,
-                generado_en=generado_en,
-                valores=puntos,
-            )
-            store.guardar(pronostico)
-            pronosticos.append(pronostico)
-
-        return RespuestaGeneracion(
-            modo_ejecucion=modo_efectivo,
-            backend_paralelismo=backend,
-            cantidad_plantas=len(pronosticos),
-            pronosticos=pronosticos,
-            metricas=MetricasProcesamiento(
-                modo=modo_efectivo,
-                workers=workers_usados,
-                elementos=len(pronosticos),
-                duracionMs=duracion_ms,
-            ),
-        )
+        response.headers["X-Modo-Datos"] = respuesta.origen_datos.value
+        response.headers["X-Backend-Paralelismo"] = respuesta.backend_paralelismo
+        response.headers["X-Workers"] = str(respuesta.metricas.workers)
+        return respuesta
     finally:
         _SEMAFORO_GENERACION.release()
 
@@ -292,3 +340,15 @@ def consultar_pronostico(plantaId: str) -> PronosticoPlanta:
             mensaje=f"No existe un pronóstico generado para la planta {plantaId}.",
         )
     return pronostico
+
+
+@app.get("/", include_in_schema=False)
+def raiz() -> dict:
+    return {
+        "servicio": "pronostico-generacion",
+        "equipo": "equipo-5",
+        "docs": "/docs",
+        "openapi": "/openapi.yaml",
+        "health": "/health",
+        "hora": datetime.now(timezone.utc).isoformat(),
+    }

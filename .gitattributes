@@ -1,0 +1,10 @@
+# Normaliza los finales de línea en el índice y evita ruido CRLF/LF.
+* text=auto
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.pem text eol=lf
+*.key text eol=lf

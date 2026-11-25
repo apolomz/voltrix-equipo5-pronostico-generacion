@@ -1,0 +1,58 @@
+{
+  "descripcion": "Misma regresión NumPy y mismo conjunto de datos en las tres estrategias.",
+  "plantas": 80,
+  "muestras_por_planta": 100000,
+  "horizonte": 24,
+  "repeticiones_medidas": 5,
+  "workers_paralelos": 8,
+  "semilla": 42,
+  "arranque_frio_process_pool_segundos": 0.580646,
+  "secuencial": {
+    "tiempos_segundos": [
+      0.649315,
+      0.63142,
+      0.632406,
+      0.632594,
+      0.630818
+    ],
+    "mediana_segundos": 0.632406,
+    "minimo_segundos": 0.630818,
+    "maximo_segundos": 0.649315,
+    "speedup_sobre_secuencial": 1.0
+  },
+  "thread_pool": {
+    "tiempos_segundos": [
+      0.428475,
+      0.40485,
+      0.400403,
+      0.400402,
+      0.405225
+    ],
+    "mediana_segundos": 0.40485,
+    "minimo_segundos": 0.400402,
+    "maximo_segundos": 0.428475,
+    "speedup_sobre_secuencial": 1.5621
+  },
+  "process_pool": {
+    "tiempos_segundos": [
+      0.279773,
+      0.273541,
+      0.270315,
+      0.270538,
+      0.284451
+    ],
+    "mediana_segundos": 0.273541,
+    "minimo_segundos": 0.270315,
+    "maximo_segundos": 0.284451,
+    "speedup_sobre_secuencial": 2.3119
+  },
+  "equivalencia_numerica": "OK: resultados comparados con numpy.allclose",
+  "equipo": {
+    "sistema_operativo": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "numpy": "2.2.6",
+    "cpu_logicas": 12,
+    "ram_total_gb": 7.2
+  },
+  "nota": "El speedup es una medición del entorno donde se ejecuta el script. No atribuir diferencias a GIL, memoria o CPU sin mediciones adicionales."
+}

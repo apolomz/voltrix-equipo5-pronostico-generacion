@@ -1,11 +1,13 @@
 """Benchmark reproducible: NumPy secuencial, ThreadPool y ProcessPool.
 
 Ejecutar desde la raíz:
-    python scripts/benchmark.py --plants 80 --samples 30000 --horizon 24 --repeats 7
+    python scripts/benchmark.py --plants 80 --samples 30000 --horizon 24 --workers 2 --repeats 7
 
 La primera creación de procesos se reporta por separado. Los tiempos medidos
 reutilizan los pools calientes. Guardar la salida JSON como evidencia cruda.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -24,15 +26,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.forecast import calcular_con_hilos, calcular_paralelo, calcular_secuencial
 
 
-def construir_tareas(numero_plantas: int, numero_muestras: int, horizonte: int):
-    rng = np.random.default_rng(42)
+def construir_tareas(numero_plantas: int, numero_muestras: int, horizonte: int, semilla: int):
+    rng = np.random.default_rng(semilla)
     x = np.arange(numero_muestras, dtype=np.float64)
     tareas = []
     for indice in range(numero_plantas):
         pendiente = 0.001 + (indice % 10) * 0.0001
         ruido = rng.normal(0, 0.5, size=numero_muestras)
         historico = (20 + indice + pendiente * x + ruido).tolist()
-        tareas.append((f"PLANTA-{indice + 1:03d}", historico, horizonte))
+        tareas.append((f"PL-{indice + 1:03d}", historico, horizonte))
     return tareas
 
 
@@ -62,13 +64,17 @@ def main():
     parser.add_argument("--horizon", type=int, default=24)
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--repeats", type=int, default=7)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output", type=str, default=None, help="Ruta del JSON de evidencia.")
     args = parser.parse_args()
 
     if args.plants < 2 or args.samples < 2 or args.horizon < 1 or args.repeats < 1:
         parser.error("plants y samples deben ser >= 2; horizon y repeats >= 1")
 
-    workers = args.workers or min(int(os.getenv("MAX_WORKERS", "2")), os.cpu_count() or 1, args.plants)
-    tareas = construir_tareas(args.plants, args.samples, args.horizon)
+    workers = args.workers or min(
+        int(os.getenv("MAX_WORKERS", "2")), os.cpu_count() or 1, args.plants
+    )
+    tareas = construir_tareas(args.plants, args.samples, args.horizon, args.seed)
 
     # Calentamiento y coste frío de creación del pool de procesos.
     secuencial_warm = calcular_secuencial(tareas)
@@ -104,6 +110,7 @@ def main():
         "horizonte": args.horizon,
         "repeticiones_medidas": args.repeats,
         "workers_paralelos": workers,
+        "semilla": args.seed,
         "arranque_frio_process_pool_segundos": round(inicio_pool_procesos, 6),
         "secuencial": resumen(secuenciales, mediana_secuencial),
         "thread_pool": resumen(hilos, mediana_secuencial),
@@ -114,14 +121,20 @@ def main():
             "python": platform.python_version(),
             "numpy": np.__version__,
             "cpu_logicas": psutil.cpu_count(logical=True),
-            "ram_total_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+            "ram_total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
         },
         "nota": (
             "El speedup es una medición del entorno donde se ejecuta el script. "
             "No atribuir diferencias a GIL, memoria o CPU sin mediciones adicionales."
         ),
     }
-    print(json.dumps(resultado, indent=2, ensure_ascii=False))
+    salida = json.dumps(resultado, indent=2, ensure_ascii=False)
+    print(salida)
+    if args.output:
+        destino = Path(args.output)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(salida + "\n", encoding="utf-8")
+        print(f"\nEvidencia escrita en {destino}", file=sys.stderr)
 
 
 if __name__ == "__main__":

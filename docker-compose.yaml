@@ -58,13 +58,25 @@ services:
 
     environment:
       DEMO_MODE: ${DEMO_MODE:-true}
+      DEMO_PLANTAS: ${DEMO_PLANTAS:-80}
+      DEMO_DIAS: ${DEMO_DIAS:-30}
+      DEMO_FALLBACK: ${DEMO_FALLBACK:-false}
       MAX_WORKERS: ${MAX_WORKERS:-2}
       PARALLEL_BACKEND: ${PARALLEL_BACKEND:-thread}
       MAX_CONCURRENT_REQUESTS: ${MAX_CONCURRENT_REQUESTS:-1}
 
-      INVENTARIO_URL: ${INVENTARIO_URL:-http://localhost:8001}
-      TELEMETRIA_URL: ${TELEMETRIA_URL:-http://localhost:8002}
-      REPORTES_URL: ${REPORTES_URL:-http://localhost:8004}
+      INVENTARIO_URL: ${INVENTARIO_URL:-}
+      TELEMETRIA_URL: ${TELEMETRIA_URL:-}
+      REPORTES_URL: ${REPORTES_URL:-}
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-5}
+      HTTP_RETRIES: ${HTTP_RETRIES:-2}
+      FETCH_WORKERS: ${FETCH_WORKERS:-8}
+      MAX_RANGO_DIAS: ${MAX_RANGO_DIAS:-31}
+      MAX_PAGINAS: ${MAX_PAGINAS:-50}
+      VALIDAR_ACTIVOS: ${VALIDAR_ACTIVOS:-true}
+      REPORTES_GENERAR_SI_VACIO: ${REPORTES_GENERAR_SI_VACIO:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TZ: UTC
 
       PGHOST: db
       PGPORT: "5432"
@@ -75,6 +87,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+    # Permite probar el mock local desde el contenedor en Linux y Windows.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     networks:
       - voltrix-network
