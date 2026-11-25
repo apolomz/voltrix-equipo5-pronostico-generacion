@@ -223,3 +223,17 @@ def test_inventario_caido_devuelve_502():
     finally:
         servicio.cerrar()
     assert exc.value.status_code == 502
+
+
+def test_demo_fallback_completa_plantas_sin_datos():
+    cliente = httpx.Client(transport=httpx.MockTransport(_handler(reportes_vacio=True, telemetria=False)))
+    servicio = DataInputService(
+        _config(validar_activos=False, demo_fallback=True), http_client=cliente
+    )
+    try:
+        resultado = servicio.obtener_series(["PL-001"], "hora", DESDE, HASTA)
+    finally:
+        servicio.cerrar()
+    assert resultado.origen_datos == "demo"
+    assert resultado.series[0].origen == "demo"
+    assert len(resultado.series[0].puntos) == 24

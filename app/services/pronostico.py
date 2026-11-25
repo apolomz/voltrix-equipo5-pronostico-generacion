@@ -110,9 +110,10 @@ def generar_pronosticos(
             0,
             "Parte del histórico es simulado porque algunas dependencias no tenían datos.",
         )
-    if len(pronosticos) < len(solicitud.planta_ids):
+    solicitadas = {planta_id.strip() for planta_id in solicitud.planta_ids if planta_id.strip()}
+    if len(pronosticos) < len(solicitadas):
         advertencias.append(
-            f"Se pronosticaron {len(pronosticos)} de {len(solicitud.planta_ids)} plantas solicitadas."
+            f"Se pronosticaron {len(pronosticos)} de {len(solicitadas)} plantas solicitadas."
         )
 
     logger.info(
