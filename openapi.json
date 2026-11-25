@@ -2,14 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Voltrix Energy - Pronóstico de Generación",
-    "description": "API del Equipo 5 para estimar la generación futura por planta. Esta versión inicial usa datos simulados y regresión lineal con NumPy.",
-    "version": "0.1.0"
+    "description": "API del Equipo 5 para estimar la generación futura por planta. Incluye descomposición de datos por planta, ejecución secuencial, por hilos o por procesos, y una capa de entrada de datos con modo demo y clientes para Inventario, Telemetría y Reportes.",
+    "version": "1.0.0"
   },
   "paths": {
     "/health": {
       "get": {
         "tags": [
-          "Salud"
+          "Operación"
         ],
         "summary": "Health",
         "operationId": "health_health_get",
@@ -23,6 +23,56 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaSalud"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "tags": [
+          "Operación"
+        ],
+        "summary": "Descargar contrato OpenAPI en YAML",
+        "operationId": "obtener_contrato_yaml_openapi_yaml_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dependencias/estado": {
+      "get": {
+        "tags": [
+          "Operación"
+        ],
+        "summary": "Comprobar la conectividad con Inventario, Telemetría y Reportes",
+        "operationId": "estado_dependencias_dependencias_estado_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDependencias"
+                }
+              }
+            }
           }
         }
       }
@@ -33,16 +83,67 @@
           "Pronósticos"
         ],
         "summary": "Generar pronósticos para varias plantas",
-        "operationId": "generar_pronosticos_pronosticos_generar_post",
+        "operationId": "generar_pronosticos_endpoint_pronosticos_generar_post",
+        "parameters": [
+          {
+            "name": "modo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ModoEjecucion",
+              "description": "Modo de ejecución: secuencial (línea base) o paralelo.",
+              "default": "paralelo"
+            },
+            "description": "Modo de ejecución: secuencial (línea base) o paralelo."
+          },
+          {
+            "name": "workers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 64,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cantidad de workers a emplear en modo paralelo.",
+              "title": "Workers"
+            },
+            "description": "Cantidad de workers a emplear en modo paralelo."
+          },
+          {
+            "name": "backend",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BackendEjecucion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Backend paralelo: auto, thread o process. Si se omite, usa PARALLEL_BACKEND.",
+              "title": "Backend"
+            },
+            "description": "Backend paralelo: auto, thread o process. Si se omite, usa PARALLEL_BACKEND."
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SolicitudGeneracion"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -54,6 +155,21 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Solicitud o rango inválido."
+          },
+          "404": {
+            "description": "Alguna planta no existe en Inventario."
+          },
+          "429": {
+            "description": "Sobrecarga; reintentar con Retry-After."
+          },
+          "502": {
+            "description": "Una dependencia falló o no hay datos disponibles."
+          },
+          "503": {
+            "description": "Base de datos o configuración no disponible."
           },
           "422": {
             "description": "Validation Error",
@@ -113,6 +229,78 @@
   },
   "components": {
     "schemas": {
+      "BackendEjecucion": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "thread",
+          "process"
+        ],
+        "title": "BackendEjecucion"
+      },
+      "EstadoFuente": {
+        "properties": {
+          "equipo": {
+            "type": "string",
+            "title": "Equipo"
+          },
+          "servicio": {
+            "type": "string",
+            "title": "Servicio"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error",
+              "no_aplica",
+              "no_configurado"
+            ],
+            "title": "Estado"
+          },
+          "latenciaMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latenciams"
+          },
+          "detalle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalle"
+          }
+        },
+        "type": "object",
+        "required": [
+          "equipo",
+          "servicio",
+          "estado"
+        ],
+        "title": "EstadoFuente"
+      },
       "Frecuencia": {
         "type": "string",
         "enum": [
@@ -133,6 +321,53 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "MetricasProcesamiento": {
+        "properties": {
+          "modo": {
+            "$ref": "#/components/schemas/ModoEjecucion"
+          },
+          "workers": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Workers"
+          },
+          "elementos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Elementos"
+          },
+          "duracionMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Duracionms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "modo",
+          "workers",
+          "elementos",
+          "duracionMs"
+        ],
+        "title": "MetricasProcesamiento"
+      },
+      "ModoEjecucion": {
+        "type": "string",
+        "enum": [
+          "secuencial",
+          "paralelo"
+        ],
+        "title": "ModoEjecucion"
+      },
+      "OrigenDatos": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "dependencias",
+          "mixto"
+        ],
+        "title": "OrigenDatos"
       },
       "PronosticoPlanta": {
         "properties": {
@@ -191,15 +426,35 @@
         ],
         "title": "PuntoPronostico"
       },
+      "RespuestaDependencias": {
+        "properties": {
+          "modoDatos": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "real"
+            ],
+            "title": "Mododatos"
+          },
+          "fuentes": {
+            "items": {
+              "$ref": "#/components/schemas/EstadoFuente"
+            },
+            "type": "array",
+            "title": "Fuentes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "modoDatos",
+          "fuentes"
+        ],
+        "title": "RespuestaDependencias"
+      },
       "RespuestaGeneracion": {
         "properties": {
           "modo_ejecucion": {
-            "type": "string",
-            "enum": [
-              "paralelo",
-              "secuencial_por_una_planta"
-            ],
-            "title": "Modo Ejecucion"
+            "$ref": "#/components/schemas/ModoEjecucion"
           },
           "backend_paralelismo": {
             "type": "string",
@@ -211,9 +466,7 @@
             "title": "Backend Paralelismo"
           },
           "origen_datos": {
-            "type": "string",
-            "const": "demo",
-            "title": "Origen Datos",
+            "$ref": "#/components/schemas/OrigenDatos",
             "default": "demo"
           },
           "cantidad_plantas": {
@@ -227,10 +480,19 @@
             "type": "array",
             "title": "Pronosticos"
           },
+          "metricas": {
+            "$ref": "#/components/schemas/MetricasProcesamiento"
+          },
           "advertencia": {
-            "type": "string",
-            "title": "Advertencia",
-            "default": "Prototipo académico: se usan datos simulados. La integración real con Inventario, Telemetría y Reportes está pendiente de acordar sus contratos."
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertencia"
           }
         },
         "type": "object",
@@ -238,25 +500,46 @@
           "modo_ejecucion",
           "backend_paralelismo",
           "cantidad_plantas",
-          "pronosticos"
+          "pronosticos",
+          "metricas"
         ],
         "title": "RespuestaGeneracion"
       },
       "RespuestaSalud": {
         "properties": {
-          "status": {
+          "estado": {
             "type": "string",
-            "const": "ok",
-            "title": "Status",
+            "enum": [
+              "disponible",
+              "no_disponible"
+            ],
+            "title": "Estado",
+            "default": "disponible"
+          },
+          "baseDatos": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "title": "Basedatos",
             "default": "ok"
           },
-          "servicio": {
+          "version": {
             "type": "string",
-            "title": "Servicio",
-            "default": "pronostico-generacion"
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "tiempoActivoSeg": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tiempoactivoseg"
           }
         },
         "type": "object",
+        "required": [
+          "tiempoActivoSeg"
+        ],
         "title": "RespuestaSalud"
       },
       "SolicitudGeneracion": {
@@ -271,8 +554,8 @@
             "description": "Identificadores de las plantas que se desean pronosticar.",
             "examples": [
               [
-                "PLANTA-001",
-                "PLANTA-002"
+                "PL-001",
+                "PL-002"
               ]
             ]
           },
@@ -291,14 +574,41 @@
             "$ref": "#/components/schemas/Frecuencia",
             "description": "Resolución temporal del pronóstico.",
             "default": "hora"
+          },
+          "desde": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desde",
+            "description": "Inicio opcional del rango histórico (RFC 3339 con zona horaria)."
+          },
+          "hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hasta",
+            "description": "Fin opcional del rango histórico (RFC 3339 con zona horaria)."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "planta_ids"
         ],
         "title": "SolicitudGeneracion",
-        "description": "Solicitud para generar pronósticos de una o varias plantas."
+        "description": "Solicitud para generar pronósticos de una o varias plantas.\n\nSe aceptan tanto ``planta_ids`` (contrato actual) como ``plantaIds``\n(convención de la plantilla común) para facilitar la integración."
       },
       "ValidationError": {
         "properties": {
@@ -344,12 +654,28 @@
   },
   "tags": [
     {
-      "name": "Salud",
-      "description": "Estado operativo del servicio."
+      "name": "Operación",
+      "description": "Salud del servicio, contrato y dependencias."
     },
     {
       "name": "Pronósticos",
       "description": "Generación y consulta de pronósticos."
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://{host}:{puerto}",
+      "description": "Despliegue del Componente B (EC2) o entorno local.",
+      "variables": {
+        "host": {
+          "default": "localhost",
+          "description": "IP pública o DNS de la instancia EC2."
+        },
+        "puerto": {
+          "default": "8000",
+          "description": "Puerto de la API."
+        }
+      }
     }
   ]
 }
