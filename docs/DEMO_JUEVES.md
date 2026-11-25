@@ -118,6 +118,10 @@ uvicorn app.main:app --port 8000
 Luego repetir el `POST /pronosticos/generar` y verificar
 `origen_datos: dependencias`.
 
+Si la API corre dentro de Docker y el mock en el host, usa
+`http://host.docker.internal:9000/eq1` (y análogos). El `docker-compose.yaml`
+ya declara `extra_hosts: host.docker.internal:host-gateway`.
+
 ## Problemas frecuentes
 
 | Síntoma | Causa probable | Solución |
