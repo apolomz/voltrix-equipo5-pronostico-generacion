@@ -1,0 +1,21 @@
+# Emulador AWS local (Floci) para el Componente A: clúster EKS emulado.
+# Floci crea un nodo k3s real como contenedor Docker, por eso necesita
+# acceso al socket de Docker en modo root (Docker Desktop en Windows/Mac
+# o Docker Engine rootful en Linux; Docker rootless o Podman no sirven).
+name: voltrix-floci
+
+services:
+  floci:
+    image: floci/floci:latest
+    container_name: voltrix-floci
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # Red donde Floci conecta el contenedor k3s del clúster.
+      FLOCI_SERVICES_EKS_DOCKER_NETWORK: voltrix-floci_default
+      # Límites del nodo k3s para no saturar el equipo local.
+      FLOCI_SERVICES_EKS_MAX_VCPUS: "2"
+      FLOCI_SERVICES_EKS_MAX_MEMORY_MIB: "2048"
+    restart: unless-stopped

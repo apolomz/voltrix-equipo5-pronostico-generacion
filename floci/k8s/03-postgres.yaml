@@ -1,0 +1,74 @@
+# PostgreSQL liviano compartido por las 2 réplicas de la API, para que
+# GET /pronosticos/{plantaId} responda igual sin importar qué réplica atienda.
+# Floci no trae StorageClass por defecto, así que se usa emptyDir (datos
+# temporales: se pierden si el pod se reinicia; suficiente para la demo).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voltrix-db
+  namespace: voltrix-equipo5
+  labels:
+    app: voltrix-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voltrix-db
+  template:
+    metadata:
+      labels:
+        app: voltrix-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args:
+            - "-c"
+            - "shared_buffers=64MB"
+            - "-c"
+            - "max_connections=20"
+            - "-c"
+            - "work_mem=2MB"
+            - "-c"
+            - "max_parallel_workers=0"
+          envFrom:
+            - secretRef:
+                name: pronostico-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: datos
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voltrix-db
+  namespace: voltrix-equipo5
+  labels:
+    app: voltrix-db
+spec:
+  type: ClusterIP
+  selector:
+    app: voltrix-db
+  ports:
+    - port: 5432
+      targetPort: 5432
