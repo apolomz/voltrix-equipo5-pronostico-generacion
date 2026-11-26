@@ -7,12 +7,12 @@ corrida. Ejecutar desde la raíz del repositorio:
         --cpu-name "Intel Core i5-1135G7" --output benchmarks/benchmark_rivera.json
 
 Criterios de medición:
-* Para cada cantidad de plantas, la línea base secuencial se mide una vez.
-* Para cada número de workers se recrean los pools y se hace un calentamiento
+- Para cada cantidad de plantas, la línea base secuencial se mide una vez.
+- Para cada número de workers se recrean los pools y se hace un calentamiento
   antes de medir. El arranque frío del ProcessPool (spawn) se reporta aparte.
-* ``forecast.py`` limita los workers a ``os.cpu_count()`` y al número de
+- ``forecast.py`` limita los workers a ``os.cpu_count()`` y al número de
   plantas; aquí se usan los workers EFECTIVOS y se omiten los repetidos.
-* Cada repetición valida equivalencia numérica con ``numpy.allclose``.
+- Cada repetición valida equivalencia numérica con ``numpy.allclose``.
 """
 
 from __future__ import annotations
@@ -201,6 +201,58 @@ def imprimir_tabla(bloque):
         )
 
 
+def generar_grafica(resultados: list[dict], ruta_salida: Path) -> None:
+    """Genera una gráfica comparativa PNG a partir de los resultados del benchmark."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print(
+            "[aviso] matplotlib no está instalado; se omite la gráfica. "
+            "Instálalo con: pip install matplotlib",
+            file=sys.stderr,
+        )
+        return
+
+    n_bloques = len(resultados)
+    fig, axes = plt.subplots(1, n_bloques, figsize=(6 * n_bloques, 4.5), squeeze=False)
+
+    for ax, bloque in zip(axes[0], resultados):
+        configs = bloque["configuraciones"]
+        workers = [str(c["workers_efectivos"]) for c in configs]
+        sec_ms = [bloque["secuencial"]["mediana_segundos"] * 1000] * len(workers)
+        hilos_ms = [c["thread_pool"]["mediana_segundos"] * 1000 for c in configs]
+        proc_ms = [c["process_pool"]["mediana_segundos"] * 1000 for c in configs]
+
+        x = np.arange(len(workers))
+        ancho = 0.26
+
+        b1 = ax.bar(x - ancho, sec_ms, ancho, label="Secuencial", color="#6c757d")
+        b2 = ax.bar(x, hilos_ms, ancho, label="ThreadPool (hilos)", color="#0d6efd")
+        b3 = ax.bar(x + ancho, proc_ms, ancho, label="ProcessPool (procesos)", color="#198754")
+
+        ax.bar_label(b1, fmt="%.1f", fontsize=7, padding=2)
+        ax.bar_label(b2, fmt="%.1f", fontsize=7, padding=2)
+        ax.bar_label(b3, fmt="%.1f", fontsize=7, padding=2)
+
+        ax.set_title(f"{bloque['plantas']} plantas")
+        ax.set_xlabel("Workers efectivos")
+        ax.set_ylabel("Tiempo mediana (ms) — menor es mejor")
+        ax.set_xticks(x)
+        ax.set_xticklabels(workers)
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+
+    axes[0][-1].legend()
+    fig.suptitle("Benchmark Pronóstico de Generación (Secuencial vs. Paralelo)", fontsize=12)
+    plt.tight_layout()
+
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(ruta_salida, dpi=150)
+    plt.close(fig)
+    print(f"Gráfica guardada en {ruta_salida}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compara tres estrategias de ejecución.")
     parser.add_argument("--plants", type=int, nargs="+", default=[40, 80])
@@ -211,6 +263,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu-name", type=str, default=None, help="Modelo de CPU si no se detecta.")
     parser.add_argument("--output", type=str, default=None, help="Ruta del JSON de evidencia.")
+    parser.add_argument("--plot", type=str, default=None, help="Ruta de la gráfica PNG.")
     args = parser.parse_args()
 
     if min(args.plants) < 2 or args.samples < 2 or args.horizon < 1 or args.repeats < 1:
@@ -258,6 +311,10 @@ def main():
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(json.dumps(resultado, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"\nEvidencia escrita en {destino}", file=sys.stderr)
+
+    ruta_grafica = Path(args.plot) if args.plot else (Path(args.output).with_suffix(".png") if args.output else None)
+    if ruta_grafica:
+        generar_grafica(resultados, ruta_grafica)
 
 
 if __name__ == "__main__":
