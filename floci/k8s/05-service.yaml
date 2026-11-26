@@ -1,0 +1,16 @@
+# Punto de entrada único que reparte las peticiones entre las 2 réplicas.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pronostico-api
+  namespace: voltrix-equipo5
+  labels:
+    app: pronostico-api
+spec:
+  type: ClusterIP
+  selector:
+    app: pronostico-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

@@ -1,0 +1,33 @@
+# Configuración no sensible del servicio. Las URLs de los equipos 1, 2 y 4
+# se inyectan aquí (no en el código). Actualizarlas con las de la hoja de
+# coordinación cuando DEMO_MODE pase a "false".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pronostico-config
+  namespace: voltrix-equipo5
+  labels:
+    app: pronostico-api
+data:
+  DEMO_MODE: "true"
+  DEMO_PLANTAS: "80"
+  DEMO_DIAS: "30"
+  DEMO_FALLBACK: "false"
+  MAX_WORKERS: "2"
+  PARALLEL_BACKEND: "thread"
+  MAX_CONCURRENT_REQUESTS: "1"
+  INVENTARIO_URL: ""
+  TELEMETRIA_URL: ""
+  REPORTES_URL: ""
+  HTTP_TIMEOUT: "5"
+  HTTP_RETRIES: "2"
+  FETCH_WORKERS: "8"
+  MAX_RANGO_DIAS: "31"
+  MAX_PAGINAS: "50"
+  VALIDAR_ACTIVOS: "true"
+  REPORTES_GENERAR_SI_VACIO: "false"
+  LOG_LEVEL: "INFO"
+  TZ: "UTC"
+  PGHOST: "voltrix-db"
+  PGPORT: "5432"
+  PGDATABASE: "voltrix"

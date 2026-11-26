@@ -1,0 +1,71 @@
+# API de Pronóstico de Generación con 2 réplicas.
+# La imagen se construye con el Dockerfile del repo y se carga en el nodo
+# k3s de Floci (ver floci/README.md), por eso imagePullPolicy: IfNotPresent.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pronostico-api
+  namespace: voltrix-equipo5
+  labels:
+    app: pronostico-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pronostico-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: pronostico-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: api
+          image: voltrix-equipo5-pronostico:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: pronostico-config
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: pronostico-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pronostico-secret
+                  key: PGPASSWORD
+          # Lista para recibir tráfico solo si /health responde 200 (API + BD).
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          # Viva si el proceso escucha; no depende de la BD para no reiniciar
+          # la API en bucle cuando PostgreSQL tarda en arrancar.
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "250m"
+            limits:
+              memory: "384Mi"
+              cpu: "1"
