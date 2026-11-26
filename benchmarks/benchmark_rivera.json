@@ -1,0 +1,367 @@
+{
+  "descripcion": "Misma regresión NumPy y mismo conjunto de datos en las tres estrategias.",
+  "parametros": {
+    "plantas": [
+      40,
+      80
+    ],
+    "workers_solicitados": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "muestras_por_planta": 30000,
+    "horizonte": 24,
+    "repeticiones_medidas": 7,
+    "semilla": 42
+  },
+  "equipo": {
+    "sistema_operativo": "Windows-11-10.0.26300-SP0",
+    "python": "3.14.7",
+    "numpy": "2.5.5",
+    "cpu_modelo": "AMD Ryzen 5 5600G with Radeon Graphics",
+    "cpu_fisicas": 6,
+    "cpu_logicas": 12,
+    "ram_total_gb": 15.85,
+    "ram_disponible_gb": 3.9
+  },
+  "resultados": [
+    {
+      "plantas": 40,
+      "secuencial": {
+        "tiempos_segundos": [
+          0.073833,
+          0.073684,
+          0.073199,
+          0.073813,
+          0.073499,
+          0.074356,
+          0.074266
+        ],
+        "mediana_segundos": 0.073813,
+        "minimo_segundos": 0.073199,
+        "maximo_segundos": 0.074356
+      },
+      "configuraciones": [
+        {
+          "workers_solicitados": 1,
+          "workers_efectivos": 1,
+          "arranque_frio_process_pool_segundos": 0.404318,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.0809,
+              0.084084,
+              0.087765,
+              0.085405,
+              0.083761,
+              0.084152,
+              0.082512
+            ],
+            "mediana_segundos": 0.084084,
+            "minimo_segundos": 0.0809,
+            "maximo_segundos": 0.087765,
+            "speedup_sobre_secuencial": 0.8778,
+            "eficiencia": 0.8778
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.135743,
+              0.135462,
+              0.146744,
+              0.149277,
+              0.136174,
+              0.135831,
+              0.134783
+            ],
+            "mediana_segundos": 0.135831,
+            "minimo_segundos": 0.134783,
+            "maximo_segundos": 0.149277,
+            "speedup_sobre_secuencial": 0.5434,
+            "eficiencia": 0.5434
+          }
+        },
+        {
+          "workers_solicitados": 2,
+          "workers_efectivos": 2,
+          "arranque_frio_process_pool_segundos": 0.343376,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.069067,
+              0.072504,
+              0.069804,
+              0.07056,
+              0.072455,
+              0.072449,
+              0.070767
+            ],
+            "mediana_segundos": 0.070767,
+            "minimo_segundos": 0.069067,
+            "maximo_segundos": 0.072504,
+            "speedup_sobre_secuencial": 1.043,
+            "eficiencia": 0.5215
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.075948,
+              0.076221,
+              0.075908,
+              0.076557,
+              0.075883,
+              0.076313,
+              0.075985
+            ],
+            "mediana_segundos": 0.075985,
+            "minimo_segundos": 0.075883,
+            "maximo_segundos": 0.076557,
+            "speedup_sobre_secuencial": 0.9714,
+            "eficiencia": 0.4857
+          }
+        },
+        {
+          "workers_solicitados": 4,
+          "workers_efectivos": 4,
+          "arranque_frio_process_pool_segundos": 0.337146,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.06986,
+              0.070382,
+              0.068366,
+              0.067973,
+              0.066457,
+              0.065216,
+              0.071134
+            ],
+            "mediana_segundos": 0.068366,
+            "minimo_segundos": 0.065216,
+            "maximo_segundos": 0.071134,
+            "speedup_sobre_secuencial": 1.0797,
+            "eficiencia": 0.2699
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.046555,
+              0.047802,
+              0.048829,
+              0.045875,
+              0.045579,
+              0.052455,
+              0.056707
+            ],
+            "mediana_segundos": 0.047802,
+            "minimo_segundos": 0.045579,
+            "maximo_segundos": 0.056707,
+            "speedup_sobre_secuencial": 1.5441,
+            "eficiencia": 0.386
+          }
+        },
+        {
+          "workers_solicitados": 8,
+          "workers_efectivos": 8,
+          "arranque_frio_process_pool_segundos": 0.460985,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.070559,
+              0.065522,
+              0.067773,
+              0.064497,
+              0.064205,
+              0.061642,
+              0.065162
+            ],
+            "mediana_segundos": 0.065162,
+            "minimo_segundos": 0.061642,
+            "maximo_segundos": 0.070559,
+            "speedup_sobre_secuencial": 1.1328,
+            "eficiencia": 0.1416
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.043612,
+              0.04266,
+              0.042659,
+              0.042309,
+              0.043667,
+              0.041877,
+              0.046401
+            ],
+            "mediana_segundos": 0.04266,
+            "minimo_segundos": 0.041877,
+            "maximo_segundos": 0.046401,
+            "speedup_sobre_secuencial": 1.7303,
+            "eficiencia": 0.2163
+          }
+        }
+      ]
+    },
+    {
+      "plantas": 80,
+      "secuencial": {
+        "tiempos_segundos": [
+          0.146339,
+          0.146747,
+          0.145068,
+          0.143463,
+          0.142616,
+          0.143195,
+          0.143093
+        ],
+        "mediana_segundos": 0.143463,
+        "minimo_segundos": 0.142616,
+        "maximo_segundos": 0.146747
+      },
+      "configuraciones": [
+        {
+          "workers_solicitados": 1,
+          "workers_efectivos": 1,
+          "arranque_frio_process_pool_segundos": 0.523978,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.144064,
+              0.143236,
+              0.146032,
+              0.146265,
+              0.144613,
+              0.14476,
+              0.148942
+            ],
+            "mediana_segundos": 0.14476,
+            "minimo_segundos": 0.143236,
+            "maximo_segundos": 0.148942,
+            "speedup_sobre_secuencial": 0.991,
+            "eficiencia": 0.991
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.271422,
+              0.266486,
+              0.266598,
+              0.269363,
+              0.265543,
+              0.284042,
+              0.273083
+            ],
+            "mediana_segundos": 0.269363,
+            "minimo_segundos": 0.265543,
+            "maximo_segundos": 0.284042,
+            "speedup_sobre_secuencial": 0.5326,
+            "eficiencia": 0.5326
+          }
+        },
+        {
+          "workers_solicitados": 2,
+          "workers_efectivos": 2,
+          "arranque_frio_process_pool_segundos": 0.459933,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.127226,
+              0.119674,
+              0.12137,
+              0.118196,
+              0.118934,
+              0.119008,
+              0.120397
+            ],
+            "mediana_segundos": 0.119674,
+            "minimo_segundos": 0.118196,
+            "maximo_segundos": 0.127226,
+            "speedup_sobre_secuencial": 1.1988,
+            "eficiencia": 0.5994
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.157099,
+              0.165684,
+              0.156237,
+              0.150632,
+              0.150193,
+              0.153053,
+              0.153135
+            ],
+            "mediana_segundos": 0.153135,
+            "minimo_segundos": 0.150193,
+            "maximo_segundos": 0.165684,
+            "speedup_sobre_secuencial": 0.9368,
+            "eficiencia": 0.4684
+          }
+        },
+        {
+          "workers_solicitados": 4,
+          "workers_efectivos": 4,
+          "arranque_frio_process_pool_segundos": 0.385404,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.121376,
+              0.123606,
+              0.120732,
+              0.120336,
+              0.12045,
+              0.121239,
+              0.121455
+            ],
+            "mediana_segundos": 0.121239,
+            "minimo_segundos": 0.120336,
+            "maximo_segundos": 0.123606,
+            "speedup_sobre_secuencial": 1.1833,
+            "eficiencia": 0.2958
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.109267,
+              0.0994,
+              0.097028,
+              0.096269,
+              0.097054,
+              0.095924,
+              0.098197
+            ],
+            "mediana_segundos": 0.097054,
+            "minimo_segundos": 0.095924,
+            "maximo_segundos": 0.109267,
+            "speedup_sobre_secuencial": 1.4782,
+            "eficiencia": 0.3695
+          }
+        },
+        {
+          "workers_solicitados": 8,
+          "workers_efectivos": 8,
+          "arranque_frio_process_pool_segundos": 0.507262,
+          "thread_pool": {
+            "tiempos_segundos": [
+              0.140117,
+              0.123443,
+              0.122383,
+              0.123708,
+              0.121485,
+              0.124223,
+              0.128208
+            ],
+            "mediana_segundos": 0.123708,
+            "minimo_segundos": 0.121485,
+            "maximo_segundos": 0.140117,
+            "speedup_sobre_secuencial": 1.1597,
+            "eficiencia": 0.145
+          },
+          "process_pool": {
+            "tiempos_segundos": [
+              0.098352,
+              0.083774,
+              0.085208,
+              0.085806,
+              0.096871,
+              0.091926,
+              0.096663
+            ],
+            "mediana_segundos": 0.091926,
+            "minimo_segundos": 0.083774,
+            "maximo_segundos": 0.098352,
+            "speedup_sobre_secuencial": 1.5606,
+            "eficiencia": 0.1951
+          }
+        }
+      ]
+    }
+  ],
+  "equivalencia_numerica": "OK: resultados comparados con numpy.allclose",
+  "nota": "El speedup es una medición del entorno donde se ejecuta el script. No atribuir diferencias a GIL, memoria o CPU sin mediciones adicionales."
+}
